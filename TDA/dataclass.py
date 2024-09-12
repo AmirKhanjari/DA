@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 
+
 # Augmentation functions
 def choose_aug(aug, args):
     imsize = args["imsize"]
@@ -105,8 +106,8 @@ def choose_aug(aug, args):
     return tf_test, tf_train
 
 # Dataset class
-class CustomDataset(Dataset):
-    def __init__(self, csv_file, root_dir, split, split_column, transform=None, aug=None, dataset_type='F1'):
+class Target(Dataset):
+    def __init__(self, csv_file, root_dir, split, split_column, transform=None, aug=None, dataset_type='F1', subsample=1.0):
         self.data_frame = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.split = split
@@ -115,10 +116,16 @@ class CustomDataset(Dataset):
         self.aug = aug
         self.dataset_type = dataset_type
         self.data_frame = self.data_frame[self.data_frame[self.split_column] == self.split]
+        
+        # Subsampling
+        if 0 < subsample < 1.0:
+            self.data_frame = self.data_frame.sample(frac=subsample, random_state=42)
+        elif subsample != 1.0:
+            raise ValueError("Subsample must be between 0 and 1, or exactly 1 for no subsampling.")
+        
         self.class_names = pd.Categorical(self.data_frame['taxon']).categories.tolist()
         self.num_classes = len(pd.Categorical(self.data_frame['taxon']).categories)
         self.data_frame['label'] = pd.Categorical(self.data_frame['taxon']).codes
-        
 
     def __len__(self):
         return len(self.data_frame)
@@ -152,83 +159,3 @@ class CustomDataset(Dataset):
 IMSIZE = 224
 args = {"imsize": IMSIZE}
 tf_test, tf_train = choose_aug("aug-02", args)
-
-# Constants
-DATA_DIR2 = '/home/amirkh/Python/data/IDA/Images'
-CSV_FILE2 = '/home/amirkh/Python/Main/CSV/Fin2(6).csv'
-DATA_DIR1 = '/home/amirkh/Python/data/Detect dataset/Cropped images'
-CSV_FILE1 = '/home/amirkh/Python/Main/CSV/Fin1-3(6).csv'
-SPLIT_COLUMN = '0'
-
-def load_data(data_folder, batch_size, train, num_workers=32, **kwargs):
-    # This function now uses the CustomDataset class
-    dataset = CustomDataset(
-        csv_file=CSV_FILE2 if 'IDA' in data_folder else CSV_FILE1,
-        root_dir=data_folder,
-        split='train' if train else 'val',
-        dataset_type='F2' if 'IDA' in data_folder else 'F1',
-        split_column=SPLIT_COLUMN,
-        transform=tf_train if train else tf_test
-    )
-    
-    data_loader = get_data_loader(dataset, batch_size=batch_size, 
-                                  shuffle=True if train else False, 
-                                  num_workers=num_workers, **kwargs, 
-                                  drop_last=True if train else False)
-    
-    n_class = dataset.num_classes if hasattr(dataset, 'num_classes') else len(dataset.data_frame['taxon'].unique())
-    return data_loader, n_class
-
-def get_data_loader(dataset, batch_size, shuffle=True, drop_last=False, num_workers=32, infinite_data_loader=False, **kwargs):
-    if not infinite_data_loader:
-        return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, **kwargs)
-    else:
-        return InfiniteDataLoader(dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers, **kwargs)
-
-class _InfiniteSampler(torch.utils.data.Sampler):
-    """Wraps another Sampler to yield an infinite stream."""
-    def __init__(self, sampler):
-        self.sampler = sampler
-
-    def __iter__(self):
-        while True:
-            for batch in self.sampler:
-                yield batch
-
-class InfiniteDataLoader:
-    def __init__(self, dataset, batch_size, shuffle=True, drop_last=False, num_workers=32, weights=None, **kwargs):
-        if weights is not None:
-            sampler = torch.utils.data.WeightedRandomSampler(weights,
-                replacement=False,
-                num_samples=batch_size)
-        else:
-            sampler = torch.utils.data.RandomSampler(dataset,
-                replacement=False)
-            
-        batch_sampler = torch.utils.data.BatchSampler(
-            sampler,
-            batch_size=batch_size,
-            drop_last=drop_last)
-
-        self._infinite_iterator = iter(torch.utils.data.DataLoader(
-            dataset,
-            num_workers=num_workers,
-            batch_sampler=_InfiniteSampler(batch_sampler)
-        ))
-
-    def __iter__(self):
-        while True:
-            yield next(self._infinite_iterator)
-
-    def __len__(self):
-        return 0  # Always return 0
-
-# Create datasets
-source_loader, source_n_class = load_data(DATA_DIR2, batch_size=32, train=True)
-val_loader, _ = load_data(DATA_DIR2, batch_size=32, train=False)
-target_train_loader, target_n_class = load_data(DATA_DIR1, batch_size=32, train=True)
-target_test_loader, _ = load_data(DATA_DIR1, batch_size=32, train=False)
-
-
-
-
