@@ -26,6 +26,12 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+logs/
+tensorboard_logs/
+runs/
+events.out.tfevents.*
+lightning_logs/
+
 
 # PyInstaller
 *.manifest
