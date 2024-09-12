@@ -1,8 +1,8 @@
 import pandas as pd
 
 # Updated paths
-CSV_FILE1 = '/home/amirkh/Python/Main/CSV/Fin1-3(6).csv'
-CSV_FILE2 = '/home/amirkh/Python/Main/CSV/Fin2(6).csv'
+CSV_FILE1 = '/home/amirkh/Python/Main/CSV/01_finbenthic1-1_processed_5splits_taxon.csv'
+CSV_FILE2 = '/home/amirkh/Python/Main/CSV/01_finbenthic2_processed_5splits_taxon.csv'
 
 # Read the CSV files
 df1 = pd.read_csv(CSV_FILE1)
